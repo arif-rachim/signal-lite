@@ -1,6 +1,14 @@
 {
   "name": "signal-lite",
-  "private": true,
+  "private": false,
+  "author": {
+    "email": "a.arif.r@gmail.com",
+    "name": "Arif Rachim"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arif-rachim/signal-lite.git"
+  },
   "version": "0.0.1",
   "type": "module",
   "files": [
