@@ -89,7 +89,7 @@ export function signal<T>(signalValue: SignalValue<T>): SignalCallback<T> {
         if (isSetter) {
             // If the signal is a computed signal, throw an error because its value cannot be set directly
             if (isComputeSignal) {
-                throw new Error('A compute signal\'s value cannot be set directly. It is derived from other signals and should be updated by modifying those signals.');
+                throw new Error('A compute signal\'s value cannot be set directly.');
             }
             // If the new value is different from the current value, update the value and mark the signal as dirty
             if (params !== value) {
@@ -133,7 +133,7 @@ export function signal<T>(signalValue: SignalValue<T>): SignalCallback<T> {
 
     function setIsDirty(value: boolean) {
         if (isDestroyed) {
-            throw new Error('The signal has been destroyed and its value can no longer be set. Please check if the signal is valid before attempting to set its value.');
+            throw new Error('The signal has been destroyed and its value can no longer be set.');
         }
         isStaleValue = value;
         if (isStaleValue) {
@@ -145,7 +145,7 @@ export function signal<T>(signalValue: SignalValue<T>): SignalCallback<T> {
 
     function onDirty(callback: NoParamFunction<void>) {
         if (isDestroyed) {
-            throw new Error('The signal has been destroyed and listeners can no longer be added. Please check if the signal is valid before attempting to add a listener.');
+            throw new Error('The signal has been destroyed and listeners can no longer be added.');
         }
         listeners.push(callback);
         return function removeListener() {
