@@ -1,55 +1,97 @@
 # Signal-Lite
 
-## Introduction
-Signal-Lite is a handy tool that helps manage signals and callbacks. Signals can be values or computed values, and they can initiate callbacks when they change. Callbacks are set up to react to these changes, making for a lively and interactive setting. 
+Signal-Lite is a small TypeScript library for reactive state based on signals, written as a dependency-free alternative to larger state libraries when all you need is values that notify their dependents. A signal is a single function: call it with no argument to read its value, or with an argument to set it. If you create a signal from a function instead of a value, it becomes a computed signal that records which other signals it reads and recalculates lazily, only after one of them changes. An `effect` runs a callback once, then runs it again every time a signal it depends on changes, and returns a function that stops it. The whole implementation is one file of under 200 lines (`lib/main.ts`), built with Vite in library mode into ES module and UMD bundles and published to npm as `signal-lite`. It is an early release (version `0.0.1-rc1`, April 2024) with no tests yet.
 
-### Motivation
-Being a lightweight tool, Signal-Lite doesn't put much strain on your system, which can lead to quicker operations and better use of memory. This can be especially useful in situations where speed is key. Even though it's simple, Signal-Lite offers an effective method to oversee state and manage changes, aiding in the development of neat and easy-to-maintain code.
+> Status: early release candidate. Not actively maintained.
 
-### What Are Signals?
+## Features
 
-Signals are like traffic signs for data in our programs. They guide how information moves, ensuring it flows smoothly and efficiently. Think of them as pointers that help track changes and dependencies in our data.
+- `signal(value)` for writable state and `signal(() => ...)` for computed values
+- Automatic dependency tracking: a computed signal or effect registers itself with every signal it reads
+- Lazy recomputation: computed signals are marked dirty when a dependency changes and recalculate on the next read
+- Setting a signal to the same value (`===`) does not notify dependents
+- `effect(callback)` returns an unsubscribe function
+- `destroy()` on a signal removes its listeners
+- No runtime dependencies
 
-### How Do They Work?
+## Tech stack
 
-Let's break it down with a simple example. Say we have a counter in our program, and we want to know if it's an even number or not. With signals, we can easily set this up:
+TypeScript · Vite 5 (library mode, ES + UMD output)
 
-```typescript
-const counter = signal(0); // Initialize the counter
-const isEven = signal(() => (counter.get() & 1) == 0); // Determine if the counter is even
+## Installation
+
+```bash
+npm install signal-lite
 ```
-Now, whenever we change the counter, the signal automatically updates to reflect whether it's even or not.
 
-### The Power of Signals
-But what makes signals so powerful? It's their ability to track changes and optimize computations. When a piece of data changes, signals know exactly what other parts of the program might be affected. This means we can avoid unnecessary recalculations and keep our programs running smoothly.
+## Usage
 
-## How it Works Behind the Scenes
-The Signal-Lite provides two main constructs: signals and effects.
-
-### Signals
-A signal represents a value that can change over time. Signals can be either static values or computed values derived from other signals. Signals can have associated callbacks that are triggered when the signal's value changes.
-
-### Effects
-An effect is a callback function that is triggered when a signal becomes "dirty," meaning its value has changed since the last time it was accessed or mutated. Effects are useful for performing side effects or updating the application state in response to signal changes.
-
-## Example Usage
 ```typescript
 import { signal, effect } from 'signal-lite';
 
-// Create a signal with an initial value
+// A writable signal with an initial value
 const count = signal(0);
 
-// Create an effect that logs the current value of the count signal
+// A computed signal, recalculated only when `count` has changed
+const isEven = signal(() => (count() & 1) === 0);
+
+// An effect runs immediately, then again whenever a signal it reads changes
 const unWatch = effect(() => {
     console.log('Count:', count());
 });
+// logs "Count: 0"
 
-// Update the value of the count signal
-count(1); // This will trigger the effect and log "Count: 1"
-count(2); // This will trigger the effect and log "Count: 2"
+count(1); // logs "Count: 1"
+count(2); // logs "Count: 2"
+count(2); // same value: nothing is logged
+
+effect(() => console.log('Even:', isEven())); // logs "Even: true"
+count(3); // logs "Count: 3" and "Even: false"
+
+unWatch(); // stop the effect
 ```
 
-In this example, we create a signal called `count` with an initial value of 0. We then create an effect that watch the current value of the `count` signal whenever it changes. Finally, we update the value of the `count` signal, which triggers the effect and logs the new value.
+The demo page in this repository (`index.html` + `src/main.ts`) uses a signal updated every second, a computed signal that formats it, and an effect that writes it into the page.
+
+## How it works
+
+The library provides two constructs: signals and effects.
+
+### Signals
+
+A signal represents a value that can change over time. It is either a plain value or a computed value derived from other signals.
+
+- While a signal is being read, it is stored as the "active" signal in a shared context. Any signal it reads during that time adds the active signal to its `referencedBy` list. This is how dependencies are discovered.
+- When a writable signal is set to a new value, it marks itself dirty and walks its `referencedBy` list, marking every dependent signal dirty as well.
+- A computed signal starts dirty. When it is read while dirty, it runs its function, stores the result and becomes clean again. Trying to set a computed signal throws an error.
+
+### Effects
+
+An effect is a computed signal whose function is the callback. `effect()` reads it once so that its dependencies are recorded, then subscribes to its "dirty" notification and calls the callback each time it fires. The return value removes that subscription.
+
+## API
+
+| Function | Description |
+|---|---|
+| `signal<T>(value: T \| (() => T))` | Creates a signal. Returns a function `s()` to read and `s(newValue)` to write, plus `s.destroy()`. |
+| `effect(callback: () => void)` | Runs `callback` now and after every change to a signal it read. Returns a function that stops it. |
+
+## Development
+
+```bash
+npm install
+npm run dev      # Vite dev server for the demo page
+npm run build    # type-check, then build dist/signal-lite.js and dist/signal-lite.umd.cjs
+```
+
+## Limitations
+
+- `index.d.ts`, which `package.json` lists as the type declarations, is still the Vite template file and does not describe `signal` or `effect`, so TypeScript users of the npm package get no correct types.
+- Calling `s(undefined)` is treated as a read, so a signal cannot be set to `undefined`.
+- Updates are synchronous and not batched: every set immediately runs the affected effects. An effect that reads both a signal and a computed signal derived from it runs more than once per change, and the first run can see the computed signal's old value.
+- Dependencies are recorded on reads and never removed, so a computed signal or effect keeps reacting to signals it read in earlier runs.
+- There are no tests.
 
 ## License
+
 This library is provided under the [MIT License](LICENSE).
